@@ -7,7 +7,44 @@ import (
 	//"time"
 	//"strconv"
 	"fmt"
+	//"math"
 )
+
+// ---------------------
+
+type DisplayObject interface {
+	GetWidth()
+	GetHeight()
+	GetTexture()
+}
+
+type MyTexture struct {
+	texture rl.Texture2D
+}
+
+type Player struct {
+	height float64
+	width float64
+	image string
+	texture rl.Texture2D 
+}
+
+func (x Player) GetWidth() int32 {
+	return int32(x.width * float64(rl.GetScreenWidth()))
+}
+
+func (x Player) GetHeight() int32 {
+	return int32(x.height * float64(rl.GetScreenHeight()))
+}
+
+func (x Player) GetTexture() rl.Texture2D {
+	return rl.LoadTextureFromImage(rl.LoadImage(x.image))
+}
+
+// ---------------------
+
+
+
 
 // Initialize basic white window with fullscreen
 func InitWindow() {
@@ -32,9 +69,13 @@ func main() {
 
 	InitWindow();
 
+	player := Player{height: 0.05, width: 0.05, image: "assets/player.png"}
+
 	for !rl.WindowShouldClose() {
         rl.BeginDrawing();
 		rl.ClearBackground(rl.RayWhite);
+
+		rl.DrawTexture(player.GetTexture(), player.GetWidth(), player.GetHeight(), rl.White)
 		rl.EndDrawing();
         //time.Sleep(50000000);
 	}
