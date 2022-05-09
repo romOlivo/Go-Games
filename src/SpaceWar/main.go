@@ -17,29 +17,35 @@ var PLAYER_VELOCITY float32 = 0.004;
 var BULLET_VELOCITY float32 = 0.01;
 var TICKS_DELAY_SHOOT int = 50;
 
-// ---------------------
+var BASIC_ENEMY_VELOCITY float32 = 0.002;
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                            D I S P L A Y A B L E   S T R U C T S 
+//
+// -------------------------------------------------------------------------------------------------------------------------------
 
 type DisplayObject interface {
-	GetWidth() int32
-	GetHeight() int32
 	GetTexture() rl.Texture2D
+	GetHeight() int32
+	GetWidth() int32
+	Tick(pos int)
+	Die(pos int)
 	Draw()
 	Move()
-	Die(pos int)
-	Tick(pos int)
 }
 
 // Implementation of Generic Displayables Objects
 type DisplayableObject struct {
-	height int32
-	width int32
-	marginTop float32
+	texture rl.Texture2D 
 	marginLeft float32
+	marginTop float32
 	rotation float32
-	image string
 	scaleX float32
 	scaleY float32
-	texture rl.Texture2D 
+	height int32
+	image string
+	width int32
 }
 
 func (x DisplayableObject) GetWidth() int32 {
@@ -82,7 +88,7 @@ func (x Player) GetHeight() int32 {
 	return x.dp.GetHeight()
 }
 
-func (x Player) GetTexture() rl.Texture2D {
+func (x *Player) GetTexture() rl.Texture2D {
 	return x.dp.GetTexture();
 }
 
@@ -107,13 +113,14 @@ func (x *Player) Move() {
 
 func (x *Player) Shoot() {
 	if (x.ticksLastShoot >= TICKS_DELAY_SHOOT) {
-		b := &Bullet{dp: DisplayableObject{marginLeft: x.dp.marginLeft, marginTop: x.dp.marginTop}}
+		b := &Bullet{dp: DisplayableObject{marginLeft: x.dp.marginLeft, marginTop: x.dp.marginTop}, radius: 4.0}
 		AddDisplayableObject(b);
+		AddBullet(b);
 		x.ticksLastShoot = 0;
 	}
 }
 
-func (x Player) Die(pos int) {
+func (x *Player) Die(pos int) {
 	return
 }
 
@@ -128,6 +135,8 @@ func (x *Player) Tick(pos int) {
 
 type Bullet struct {
 	dp DisplayableObject
+	radius float32
+	wantToDie bool
 }
 
 func (x Bullet) GetWidth() int32 {
@@ -138,21 +147,22 @@ func (x Bullet) GetHeight() int32 {
 	return x.dp.GetHeight()
 }
 
-func (x Bullet) GetTexture() rl.Texture2D {
+func (x *Bullet) GetTexture() rl.Texture2D {
 	return x.dp.GetTexture();
 }
 
 func (x Bullet) Draw() {
-	rl.DrawCircle(x.GetWidth(), x.GetHeight() + int32(40 * int32(rl.GetScreenHeight()) / DEFAULT_SCREEN_WIDTH) - 8, 4.0, rl.Red)
+	rl.DrawCircle(x.GetWidth(), x.GetHeight() + int32(40 * int32(rl.GetScreenHeight()) / DEFAULT_SCREEN_WIDTH) - 8, x.radius, rl.Red)
 }
 
 func (x *Bullet) Move() {
 	x.dp.marginLeft = float32(math.Min(1.0, float64(x.dp.marginLeft + BULLET_VELOCITY)));
 }
 
-func (x Bullet) Die(pos int) {
-	if (x.dp.marginLeft == 1.0) {
+func (x *Bullet) Die(pos int) {
+	if (x.dp.marginLeft == 1.0 || x.wantToDie) {
 		RemoveDisplayableObject(pos);
+		RemoveBullet(x);
 	}
 }
 
@@ -162,15 +172,161 @@ func (x *Bullet) Tick(pos int) {
 	x.Die(pos);
 }
 
-// ---------------------
+// Implementation of the Enemy Displayable Struct
 
+type Enemy struct {
+	dp DisplayableObject
+}
+
+func (x Enemy) GetWidth() int32 {
+	return x.dp.GetWidth();
+}
+
+func (x Enemy) GetHeight() int32 {
+	return x.dp.GetHeight()
+}
+
+func (x *Enemy) GetTexture() rl.Texture2D {
+	return x.dp.GetTexture();
+}
+
+func (x *Enemy) Draw() {
+	var v rl.Vector2;
+	v.X = float32(x.GetWidth());
+	v.Y = float32(x.GetHeight());
+	rl.DrawTextureEx(x.GetTexture(), v, x.dp.rotation, 1.0, rl.White)
+}
+
+func (x *Enemy) Move() {
+	return
+}
+
+func (x *Enemy) Tick(pos int) {
+	x.Move();
+	x.Draw();
+	x.Die(pos);
+}
+
+func (x *Enemy) Die(pos int) {
+	if (x.dp.marginLeft == -0.2 || x.CollideWithBullet()) {
+		RemoveDisplayableObject(pos);
+	}
+}
+
+func (x Enemy) CollideWithBullet() bool{
+	haveCollide := false;
+	var rec rl.Rectangle;
+	rec.X = float32(x.GetWidth());
+	rec.Y = float32(x.GetHeight() - x.dp.height);
+	rec.Height = float32(x.dp.height);
+	rec.Width = float32(x.dp.width);
+	for i:=0; i<len(bulletsArray); i++ {
+		bullet := bulletsArray[i];
+		var v rl.Vector2;
+		v.X = float32(bullet.GetWidth());
+		v.Y = float32(bullet.GetHeight());
+		if (rl.CheckCollisionCircleRec(v, bullet.radius, rec)) {
+			haveCollide = true;
+			bullet.wantToDie = true;
+			break;
+		}
+	}
+	return haveCollide;
+}
+
+// Implementation of the Linear Enemy Displayable Struct
+
+type LinearEnemy struct {
+	enemy Enemy
+}
+
+func (x LinearEnemy) GetWidth() int32 {
+	return x.enemy.GetWidth();
+}
+
+func (x LinearEnemy) GetHeight() int32 {
+	return x.enemy.GetHeight()
+}
+
+func (x *LinearEnemy) GetTexture() rl.Texture2D {
+	return x.enemy.GetTexture();
+}
+
+func (x *LinearEnemy) Draw() {
+	x.enemy.Draw();
+}
+
+func (x *LinearEnemy) Move() {
+	x.enemy.dp.marginLeft = float32(math.Max(-0.2, float64(x.enemy.dp.marginLeft - BASIC_ENEMY_VELOCITY)));
+}
+
+func (x *LinearEnemy) Tick(pos int) {
+	x.Move();
+	x.Draw();
+	x.Die(pos);
+}
+
+func (x *LinearEnemy) Die(pos int) {
+	x.enemy.Die(pos);
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                                   E N E M Y   G E N E R A T O R
+//
+// -------------------------------------------------------------------------------------------------------------------------------
+
+func GenerateLinearEnemy(mt float32, ml float32) {
+	enemy := &LinearEnemy{enemy: Enemy{dp: DisplayableObject{marginTop: mt, marginLeft: ml, rotation: -90.0, image: "assets/ship1.png"}}};
+	AddDisplayableObject(enemy);
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                     M A N I P U L A T I N G   D I S P L A Y   O B J E C T S
+//
+// -------------------------------------------------------------------------------------------------------------------------------
+
+
+// Manipulating generics display objects
 var displayArray []DisplayObject;
 var newDisplayArray []DisplayObject;
+
+func AddDisplayableObject[V DisplayObject](dp V) {
+	displayArray = append(displayArray, dp);
+}
+
+func RemoveDisplayableObject(i int) {
+	newDisplayArray[i] = newDisplayArray[len(newDisplayArray)-1]
+    newDisplayArray = newDisplayArray[:len(newDisplayArray)-1]
+}
+
+// Manipulating Bullets
+var bulletsArray []*Bullet;
+
+func AddBullet(b *Bullet) {
+	bulletsArray = append(bulletsArray, b);
+}
+
+func RemoveBullet(b *Bullet) {
+	for i:=0; i<len(bulletsArray); i++ {
+		if(bulletsArray[i] == b) {
+			break;
+		}
+	}
+}
+
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                                             M A I N
+//
+// -------------------------------------------------------------------------------------------------------------------------------
 
 
 // Initialize basic white window with fullscreen
 func InitWindow() {
-	rl.InitWindow(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, "FlappyApples");
+	rl.InitWindow(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, "Space War");
 
 	rl.MaximizeWindow();
 	rl.SetTargetFPS(120);
@@ -182,22 +338,14 @@ func InitWindow() {
 	rl.SetWindowPosition(0, 0);
 }
 
-func AddDisplayableObject[V DisplayObject](dp V) {
-	displayArray = append(displayArray, dp);
-}
-
-func RemoveDisplayableObject(i int) {
-	newDisplayArray[i] = newDisplayArray[len(newDisplayArray)-1]
-    newDisplayArray = newDisplayArray[:len(newDisplayArray)-1]
-}
-
-
 func main() {
     fmt.Println(" Initializing the game....");
 
 	InitWindow();
 
 	player := &Player{dp: DisplayableObject{marginTop: 0.05, marginLeft: 0.09, rotation: 90.0, image: "assets/player.png"}};
+
+	GenerateLinearEnemy(0.05, 0.70);
 
 	for !rl.WindowShouldClose() {
         rl.BeginDrawing();
