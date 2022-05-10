@@ -1,4 +1,4 @@
-module games.com/flappybird
+module games.com/spacewar
 
 go 1.18
 

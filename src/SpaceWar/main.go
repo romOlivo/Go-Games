@@ -277,7 +277,12 @@ func (x *LinearEnemy) Die(pos int) {
 // -------------------------------------------------------------------------------------------------------------------------------
 
 func GenerateLinearEnemy(mt float32, ml float32) {
-	enemy := &LinearEnemy{enemy: Enemy{dp: DisplayableObject{marginTop: mt, marginLeft: ml, rotation: -90.0, image: "assets/ship1.png"}}};
+	dp := DisplayableObject{marginTop: mt, marginLeft: ml, rotation: -90.0, image: "assets/ship1.png"};
+	GenerateLinearEnemyDp(dp);
+}
+
+func GenerateLinearEnemyDp(dp DisplayableObject) {
+	enemy := &LinearEnemy{enemy: Enemy{dp: dp}};
 	AddDisplayableObject(enemy);
 }
 
@@ -316,6 +321,67 @@ func RemoveBullet(b *Bullet) {
 	}
 }
 
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                                 L E V E L   M A N I P U L A T I O N
+//
+// -------------------------------------------------------------------------------------------------------------------------------
+
+type Level interface {
+	Tick()
+	isEnded()
+	End()
+}
+
+type Wave interface {
+	makeWave();
+	canActivateWave(ticks int) bool;
+}
+
+type DefinedLevel struct {
+	ticks int;
+	waves []Wave;
+	waveNumber int;
+}
+
+func (x *DefinedLevel) Tick() {
+	x.ticks++;
+	if (x.waveNumber < len(x.waves) && x.waves[x.waveNumber].canActivateWave(x.ticks)) {
+		x.waves[x.waveNumber].makeWave();
+		x.waveNumber++;
+	}
+}
+
+func (x DefinedLevel) isEnded() {
+
+}
+
+func (x DefinedLevel) End() {
+
+}
+
+func (x *DefinedLevel) AddWave(w Wave) {
+	x.waves = append(x.waves, w);
+}
+
+type BasicWave struct {
+	tickToLaunch int;
+	enemiesDp []DisplayableObject
+}
+
+func (x BasicWave) canActivateWave(ticks int) bool {
+	return x.tickToLaunch == ticks;
+}
+
+func (x BasicWave) makeWave() {
+	for i:=0; i<len(x.enemiesDp); i++ {
+		GenerateLinearEnemyDp(x.enemiesDp[i]);
+	}
+}
+
+func (x *BasicWave) addNewEnemy(dp DisplayableObject) {
+	x.enemiesDp = append(x.enemiesDp, dp);
+}
 
 // -------------------------------------------------------------------------------------------------------------------------------
 //
@@ -338,6 +404,18 @@ func InitWindow() {
 	rl.SetWindowPosition(0, 0);
 }
 
+func GenerateLevel() Level {
+	level := &DefinedLevel{}
+
+	wave1 := &BasicWave{tickToLaunch: 100};
+	wave1.addNewEnemy(DisplayableObject{marginTop: 0.05, marginLeft: 1.00, rotation: -90.0, image: "assets/ship1.png"});
+	wave1.addNewEnemy(DisplayableObject{marginTop: 0.65, marginLeft: 1.20, rotation: -90.0, image: "assets/ship1.png"});
+	wave1.addNewEnemy(DisplayableObject{marginTop: 0.45, marginLeft: 1.30, rotation: -90.0, image: "assets/ship1.png"});
+	level.AddWave(wave1);
+
+	return level;
+}
+
 func main() {
     fmt.Println(" Initializing the game....");
 
@@ -345,7 +423,7 @@ func main() {
 
 	player := &Player{dp: DisplayableObject{marginTop: 0.05, marginLeft: 0.09, rotation: 90.0, image: "assets/player.png"}};
 
-	GenerateLinearEnemy(0.05, 0.70);
+	level := GenerateLevel();
 
 	for !rl.WindowShouldClose() {
         rl.BeginDrawing();
@@ -356,6 +434,7 @@ func main() {
 			displayArray[i].Tick(i)
 		}
 		displayArray = newDisplayArray
+		level.Tick();
 		rl.EndDrawing();
         time.Sleep(1000000);
 	}
