@@ -38,6 +38,7 @@ type DisplayObject interface {
 // Implementation of Generic Displayables Objects
 type DisplayableObject struct {
 	texture rl.Texture2D 
+	textureLoaded bool
 	marginLeft float32
 	marginTop float32
 	rotation float32
@@ -57,13 +58,17 @@ func (x DisplayableObject) GetHeight() int32 {
 }
 
 func (x *DisplayableObject) GetTexture() rl.Texture2D {
-	img := rl.LoadImage(x.image)
-	x.scaleX = float32(int32(rl.GetScreenHeight()) / DEFAULT_SCREEN_HEIGHT);
-	x.scaleY = float32(int32(rl.GetScreenWidth()) / DEFAULT_SCREEN_WIDTH);
-	x.height = int32(40 * x.scaleX)
-	x.width = int32(40 * x.scaleY)
-	rl.ImageResize(img, x.height, x.width)
-	return rl.LoadTextureFromImage(img)
+	if (!x.textureLoaded) {
+		img := rl.LoadImage(x.image)
+		x.scaleX = float32(int32(rl.GetScreenHeight()) / DEFAULT_SCREEN_HEIGHT);
+		x.scaleY = float32(int32(rl.GetScreenWidth()) / DEFAULT_SCREEN_WIDTH);
+		x.height = int32(40 * x.scaleX)
+		x.width = int32(40 * x.scaleY)
+		rl.ImageResize(img, x.height, x.width)
+		x.texture = rl.LoadTextureFromImage(img)
+		x.textureLoaded = true
+	}
+	return x.texture;
 }
 
 func (x *DisplayableObject) Draw() {
@@ -77,7 +82,10 @@ func (x *DisplayableObject) Move() {
 // Implementation of the Player Displayable Struct
 type Player struct {
 	dp DisplayableObject
+	loadedSound rl.Sound
+	haveLoadedSound bool
 	ticksLastShoot int
+	sound string
 }
 
 func (x Player) GetWidth() int32 {
@@ -116,6 +124,11 @@ func (x *Player) Shoot() {
 		b := &Bullet{dp: DisplayableObject{marginLeft: x.dp.marginLeft, marginTop: x.dp.marginTop}, radius: 4.0}
 		AddDisplayableObject(b);
 		AddBullet(b);
+		if (!x.haveLoadedSound) {
+			x.loadedSound = rl.LoadSound(x.sound);
+			x.haveLoadedSound = true;
+		}
+		rl.PlaySoundMulti(x.loadedSound)
 		x.ticksLastShoot = 0;
 	}
 }
@@ -185,6 +198,7 @@ func (x *Bullet) Tick(pos int) {
 
 type Enemy struct {
 	dp DisplayableObject
+	dieSound rl.Sound
 }
 
 func (x Enemy) GetWidth() int32 {
@@ -217,8 +231,12 @@ func (x *Enemy) Tick(pos int) {
 }
 
 func (x *Enemy) Die(pos int) {
-	if (x.dp.marginLeft == -0.2 || x.CollideWithBullet()) {
+	collide := x.CollideWithBullet();
+	if (x.dp.marginLeft == -0.2 || collide) {
 		RemoveDisplayableObject(pos);
+		if (collide) {
+			rl.PlaySoundMulti(x.dieSound)
+		}
 	}
 }
 
@@ -283,6 +301,11 @@ func (x *LinearEnemy) Die(pos int) {
 //                                                   E N E M Y   G E N E R A T O R
 //
 // -------------------------------------------------------------------------------------------------------------------------------
+var dieSoundLinearEnemy rl.Sound
+
+func InitGenerators() {
+	dieSoundLinearEnemy = rl.LoadSound("sounds/explosion01.wav");
+}
 
 func GenerateLinearEnemy(mt float32, ml float32) {
 	dp := DisplayableObject{marginTop: mt, marginLeft: ml, rotation: -90.0, image: "assets/ship1.png"};
@@ -290,7 +313,7 @@ func GenerateLinearEnemy(mt float32, ml float32) {
 }
 
 func GenerateLinearEnemyDp(dp DisplayableObject) {
-	enemy := &LinearEnemy{enemy: Enemy{dp: dp}};
+	enemy := &LinearEnemy{enemy: Enemy{dp: dp, dieSound: dieSoundLinearEnemy}};
 	AddDisplayableObject(enemy);
 }
 
@@ -339,8 +362,9 @@ func RemoveBullet(b *Bullet) {
 // -------------------------------------------------------------------------------------------------------------------------------
 
 type Level interface {
-	Tick()
 	isEnded() bool
+	Initialize()
+	Tick()
 	End()
 }
 
@@ -350,9 +374,15 @@ type Wave interface {
 }
 
 type DefinedLevel struct {
-	ticks int;
-	waves []Wave;
 	waveNumber int;
+	waves []Wave;
+	sound string;
+	ticks int;
+}
+
+func (x DefinedLevel) Initialize() {
+	s := rl.LoadSound(x.sound);
+	rl.PlaySoundMulti(s)
 }
 
 func (x *DefinedLevel) Tick() {
@@ -416,7 +446,7 @@ func InitWindow() {
 }
 
 func GenerateLevel() Level {
-	level := &DefinedLevel{}
+	level := &DefinedLevel{sound: "sounds/battle_02.mp3"}
 
 	wave1 := &BasicWave{tickToLaunch: 1};
 	wave1.addNewEnemy(DisplayableObject{marginTop: 0.05, marginLeft: 1.00, rotation: -90.0, image: "assets/ship1.png"});
@@ -444,11 +474,15 @@ func GenerateLevel() Level {
 func main() {
     fmt.Println(" Initializing the game....");
 
+	rl.InitAudioDevice();
+
+	InitGenerators();
 	InitWindow();
 
-	player := &Player{dp: DisplayableObject{marginTop: 0.05, marginLeft: 0.09, rotation: 90.0, image: "assets/player.png"}};
+	player := &Player{dp: DisplayableObject{marginTop: 0.05, marginLeft: 0.09, rotation: 90.0, image: "assets/player.png"}, sound: "sounds/laserfire01.ogg"};
 
 	level := GenerateLevel();
+	level.Initialize();
 
 	for !rl.WindowShouldClose() && !level.isEnded() {
         rl.BeginDrawing();
