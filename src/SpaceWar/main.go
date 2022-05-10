@@ -4,7 +4,7 @@ package main
 import (
 	"github.com/gen2brain/raylib-go/raylib"
 	//"math/rand"
-	"time"
+	//"time"
 	//"strconv"
 	"fmt"
 	"math"
@@ -406,7 +406,7 @@ func InitWindow() {
 	rl.InitWindow(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, "Space War");
 
 	rl.MaximizeWindow();
-	rl.SetTargetFPS(70);
+	rl.SetTargetFPS(100);
 	
 	monitor := rl.GetCurrentMonitor();
 	screenWidth := rl.GetMonitorWidth(monitor);
@@ -461,7 +461,6 @@ func main() {
 		displayArray = newDisplayArray
 		level.Tick();
 		rl.EndDrawing();
-        time.Sleep(1000000);
 	}
 
 	rl.CloseWindow();
