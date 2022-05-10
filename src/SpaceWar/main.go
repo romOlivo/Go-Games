@@ -151,8 +151,15 @@ func (x *Bullet) GetTexture() rl.Texture2D {
 	return x.dp.GetTexture();
 }
 
+func (x Bullet) GetCenter() rl.Vector2 {
+	var v rl.Vector2;
+	v.X = float32(x.GetWidth());
+	v.Y = float32(x.GetHeight() + int32(40 * int32(rl.GetScreenHeight()) / DEFAULT_SCREEN_WIDTH) - 8);
+	return v;
+}
+
 func (x Bullet) Draw() {
-	rl.DrawCircle(x.GetWidth(), x.GetHeight() + int32(40 * int32(rl.GetScreenHeight()) / DEFAULT_SCREEN_WIDTH) - 8, x.radius, rl.Red)
+	rl.DrawCircleV(x.GetCenter(), x.radius, rl.Red)
 }
 
 func (x *Bullet) Move() {
@@ -171,6 +178,8 @@ func (x *Bullet) Tick(pos int) {
 	x.Draw();
 	x.Die(pos);
 }
+
+
 
 // Implementation of the Enemy Displayable Struct
 
@@ -220,11 +229,10 @@ func (x Enemy) CollideWithBullet() bool{
 	rec.Y = float32(x.GetHeight() - x.dp.height);
 	rec.Height = float32(x.dp.height);
 	rec.Width = float32(x.dp.width);
+	// rl.DrawRectangleRec(rec, rl.Red);   --- For debuging purposes
 	for i:=0; i<len(bulletsArray); i++ {
 		bullet := bulletsArray[i];
-		var v rl.Vector2;
-		v.X = float32(bullet.GetWidth());
-		v.Y = float32(bullet.GetHeight());
+		v := bullet.GetCenter();
 		if (rl.CheckCollisionCircleRec(v, bullet.radius, rec)) {
 			haveCollide = true;
 			bullet.wantToDie = true;
