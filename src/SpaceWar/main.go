@@ -322,11 +322,14 @@ func AddBullet(b *Bullet) {
 }
 
 func RemoveBullet(b *Bullet) {
+	newBulletsArray := bulletsArray;
 	for i:=0; i<len(bulletsArray); i++ {
 		if(bulletsArray[i] == b) {
-			break;
+			newBulletsArray[i] = newBulletsArray[len(newBulletsArray)-1]
+    		newBulletsArray = newBulletsArray[:len(newBulletsArray)-1]
 		}
 	}
+	bulletsArray = newBulletsArray;
 }
 
 // -------------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +340,7 @@ func RemoveBullet(b *Bullet) {
 
 type Level interface {
 	Tick()
-	isEnded()
+	isEnded() bool
 	End()
 }
 
@@ -360,8 +363,8 @@ func (x *DefinedLevel) Tick() {
 	}
 }
 
-func (x DefinedLevel) isEnded() {
-
+func (x DefinedLevel) isEnded() bool {
+	return false;
 }
 
 func (x DefinedLevel) End() {
@@ -403,7 +406,7 @@ func InitWindow() {
 	rl.InitWindow(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, "Space War");
 
 	rl.MaximizeWindow();
-	rl.SetTargetFPS(120);
+	rl.SetTargetFPS(70);
 	
 	monitor := rl.GetCurrentMonitor();
 	screenWidth := rl.GetMonitorWidth(monitor);
@@ -415,11 +418,25 @@ func InitWindow() {
 func GenerateLevel() Level {
 	level := &DefinedLevel{}
 
-	wave1 := &BasicWave{tickToLaunch: 100};
+	wave1 := &BasicWave{tickToLaunch: 1};
 	wave1.addNewEnemy(DisplayableObject{marginTop: 0.05, marginLeft: 1.00, rotation: -90.0, image: "assets/ship1.png"});
 	wave1.addNewEnemy(DisplayableObject{marginTop: 0.65, marginLeft: 1.20, rotation: -90.0, image: "assets/ship1.png"});
 	wave1.addNewEnemy(DisplayableObject{marginTop: 0.45, marginLeft: 1.30, rotation: -90.0, image: "assets/ship1.png"});
 	level.AddWave(wave1);
+
+	wave2 := &BasicWave{tickToLaunch: 700};
+	wave2.addNewEnemy(DisplayableObject{marginTop: 0.08, marginLeft: 1.00, rotation: -90.0, image: "assets/ship1.png"});
+	wave2.addNewEnemy(DisplayableObject{marginTop: 0.75, marginLeft: 1.10, rotation: -90.0, image: "assets/ship1.png"});
+	wave2.addNewEnemy(DisplayableObject{marginTop: 0.45, marginLeft: 1.35, rotation: -90.0, image: "assets/ship1.png"});
+	wave2.addNewEnemy(DisplayableObject{marginTop: 0.70, marginLeft: 1.35, rotation: -90.0, image: "assets/ship1.png"});
+	level.AddWave(wave2);
+
+	wave3 := &BasicWave{tickToLaunch: 1400};
+	wave3.addNewEnemy(DisplayableObject{marginTop: 0.13, marginLeft: 1.00, rotation: -90.0, image: "assets/ship1.png"});
+	wave3.addNewEnemy(DisplayableObject{marginTop: 0.27, marginLeft: 1.05, rotation: -90.0, image: "assets/ship1.png"});
+	wave3.addNewEnemy(DisplayableObject{marginTop: 0.13, marginLeft: 1.10, rotation: -90.0, image: "assets/ship1.png"});
+	wave3.addNewEnemy(DisplayableObject{marginTop: 0.27, marginLeft: 1.15, rotation: -90.0, image: "assets/ship1.png"});
+	level.AddWave(wave3);
 
 	return level;
 }
@@ -433,7 +450,7 @@ func main() {
 
 	level := GenerateLevel();
 
-	for !rl.WindowShouldClose() {
+	for !rl.WindowShouldClose() && !level.isEnded() {
         rl.BeginDrawing();
 		rl.ClearBackground(rl.RayWhite);
 		player.Tick(-1);
