@@ -145,6 +145,15 @@ func (x *Player) Tick(pos int) {
 	x.ticksLastShoot++;
 }
 
+func (x Player) GetCollider () rl.Rectangle {
+	var rec rl.Rectangle;
+	rec.X = float32(x.GetWidth() - x.dp.width);
+	rec.Y = float32(x.GetHeight());
+	rec.Height = float32(x.dp.height);
+	rec.Width = float32(x.dp.width);
+	return rec;
+}
+
 // Implementation of the Bullet Displayable Struct
 
 type Bullet struct {
@@ -245,12 +254,8 @@ func (x *Enemy) Die(pos int) {
 
 func (x Enemy) CollideWithBullet() bool{
 	haveCollide := false;
-	var rec rl.Rectangle;
-	rec.X = float32(x.GetWidth());
-	rec.Y = float32(x.GetHeight() - x.dp.height);
-	rec.Height = float32(x.dp.height);
-	rec.Width = float32(x.dp.width);
-	// rl.DrawRectangleRec(rec, rl.Red);   --- For debuging purposes
+	rec := x.GetCollider();
+	// rl.DrawRectangleRec(rec, rl.Red);  // --- For debuging purposes
 	bulletsArray := x.core.GetBulletsArray()
 	for i:=0; i<len(bulletsArray); i++ {
 		bullet := bulletsArray[i];
@@ -261,7 +266,22 @@ func (x Enemy) CollideWithBullet() bool{
 			break;
 		}
 	}
+	rec2 := x.core.GetPlayer().GetCollider();
+	// rl.DrawRectangleRec(rec2, rl.Red);  // --- For debuging purposes
+	if (rl.CheckCollisionRecs(rec, rec2)) {
+		haveCollide = true;
+		x.core.PlayerDied();
+	}
 	return haveCollide;
+}
+
+func (x Enemy) GetCollider () rl.Rectangle {
+	var rec rl.Rectangle;
+	rec.X = float32(x.GetWidth());
+	rec.Y = float32(x.GetHeight() - x.dp.height);
+	rec.Height = float32(x.dp.height);
+	rec.Width = float32(x.dp.width);
+	return rec;
 }
 
 // Implementation of the Linear Enemy Displayable Struct
@@ -341,6 +361,7 @@ type Level interface {
 	GetCore() Core
 	isEnded() bool
 	Initialize()
+	PlayerDied()
 	Tick()
 	End()
 }
@@ -351,6 +372,7 @@ type Wave interface {
 }
 
 type DefinedLevel struct {
+	playerLives int32;
 	waveNumber int;
 	waves []Wave;
 	sound string;
@@ -358,9 +380,11 @@ type DefinedLevel struct {
 	core Core;
 }
 
-func (x DefinedLevel) Initialize() {
+func (x *DefinedLevel) Initialize() {
 	s := rl.LoadSound(x.sound);
 	rl.PlaySoundMulti(s);
+
+	x.playerLives = 1;
 }
 
 func (x *DefinedLevel) Tick() {
@@ -372,7 +396,7 @@ func (x *DefinedLevel) Tick() {
 }
 
 func (x DefinedLevel) isEnded() bool {
-	return false;
+	return x.playerLives == 0;
 }
 
 func (x DefinedLevel) End() {
@@ -388,6 +412,10 @@ func (x *DefinedLevel) SetCore(core Core) {
 }
 func (x *DefinedLevel) GetCore() Core {
 	return x.core;
+}
+
+func (x *DefinedLevel) PlayerDied() {
+	x.playerLives--;
 }
 
 type BasicWave struct {
@@ -410,6 +438,7 @@ func (x BasicWave) makeWave() {
 func (x *BasicWave) addNewEnemy(dp DisplayableObject) {
 	x.enemiesDp = append(x.enemiesDp, dp);
 }
+
 
 // -------------------------------------------------------------------------------------------------------------------------------
 //
@@ -482,8 +511,10 @@ func (x *BasicDisplayableObjectController) Tick() {
 
 type GameEngine interface {
 	SetLevel(level Level)
+	GetPlayer() *Player
 	IsGameEnded() bool
 	InitializeGame()
+	PlayerDied()
 	Tick();
 }
 
@@ -502,7 +533,11 @@ func (x *BasicGameEngine) InitializeGame() {
 }
 
 func (x BasicGameEngine) IsGameEnded() bool {
-	return false
+	return x.level.isEnded();
+}
+
+func (x BasicGameEngine) GetPlayer() *Player {
+	return x.player;
 }
 
 func (x *BasicGameEngine) SetLevel(level Level) {
@@ -512,6 +547,10 @@ func (x *BasicGameEngine) SetLevel(level Level) {
 func (x *BasicGameEngine) Tick() {
 	x.player.Tick(-1);
 	x.level.Tick();
+}
+
+func (x *BasicGameEngine) PlayerDied() {
+	x.level.PlayerDied();
 }
 
 // Core of the Game
@@ -575,12 +614,22 @@ func (x *CoreGame) SetLevel(level Level) {
 	x.gameEngine.SetLevel(level);
 }
 
+func (x CoreGame) GetPlayer() *Player {
+	return x.gameEngine.GetPlayer();
+}
+
 func (x *CoreGame) Tick() {
 	rl.BeginDrawing();
-	rl.ClearBackground(rl.RayWhite);
-	x.displayableObjectController.Tick();
-	x.gameEngine.Tick();
+	if (!x.gameEngine.IsGameEnded()) {
+		rl.ClearBackground(rl.RayWhite);
+		x.displayableObjectController.Tick();
+		x.gameEngine.Tick();
+	}
 	rl.EndDrawing();
+}
+
+func (x *CoreGame) PlayerDied() {
+	x.gameEngine.PlayerDied();
 }
 
 // Other functionality
@@ -643,7 +692,7 @@ func main() {
 	coreGame = &CoreGame{};
 	coreGame.InitializeGame();
 
-	for !rl.WindowShouldClose() && !coreGame.IsGameEnded() {
+	for !rl.WindowShouldClose() {
 		coreGame.Tick();
 	}
 
