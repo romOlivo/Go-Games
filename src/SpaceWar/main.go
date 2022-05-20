@@ -21,6 +21,270 @@ var BASIC_ENEMY_VELOCITY float32 = 0.002;
 
 // -------------------------------------------------------------------------------------------------------------------------------
 //
+//                                                      C O L L I D E R S
+//
+// -------------------------------------------------------------------------------------------------------------------------------
+
+type Collider interface {
+	Collide(x float32, y float32) bool;
+}
+
+type RectangleCollider struct {
+	collider rl.Rectangle;
+}
+
+func (x RectangleCollider) Collide(X float32, Y float32) bool {
+	var vec rl.Vector2;
+	vec.X = X;
+	vec.Y = Y;
+	return rl.CheckCollisionPointRec(vec, x.collider);
+}
+
+type Collidable interface {
+	GetCollider() Collider;
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                                      W I N D O W S 
+//
+// -------------------------------------------------------------------------------------------------------------------------------
+
+type Callable interface {
+	Call();
+}
+
+// Generic Objects
+type WindowDisplayObject interface {
+	Collidable;
+
+	GetHeight() float32;
+	GetWidth() float32;
+	Initialize();
+	OnClick();
+	Hover();
+	Draw();
+}
+
+// Button structure
+type Button struct {
+	recBackground rl.Rectangle;
+	backgroundColor rl.Color;
+	textPadding float32;
+	collider Collider;
+	marginTop float32;
+	callable Callable;
+	isClickable bool;
+	textWidth int32;
+	fontSize int32;
+	text string;
+}
+
+func (x Button) GetCollider() Collider {
+	return x.collider;
+}
+
+func (x Button) GetHeight() float32 {
+	return x.recBackground.Height
+}
+
+func (x Button) GetWidth() float32 {
+	return x.recBackground.Width
+}
+
+func (x *Button) InitializeDefaultValues() {
+	if (x.textPadding == 0.0) {
+		x.textPadding = 30.0;
+	}
+
+	if(x.marginTop == 0.0) {
+		x.marginTop = 100.0;
+	}
+
+	if (x.fontSize == 0) {
+		x.fontSize = 30;
+	}
+
+	if (x.text == "") {
+		x.text = "Reiniciar";
+	}
+}
+
+func (x *Button) Initialize() {
+	x.InitializeDefaultValues();
+
+	x.backgroundColor = rl.Blue;
+
+	monitor := rl.GetCurrentMonitor();
+	screenWidth := rl.GetMonitorWidth(monitor);
+
+	x.textWidth = int32(rl.MeasureText(x.text, x.fontSize))
+
+	x.recBackground.X = float32(screenWidth - int(x.textWidth)) / 2 - x.textPadding;
+	x.recBackground.Y = x.marginTop;
+	x.recBackground.Width = float32(x.textWidth) + 2 * x.textPadding;
+	x.recBackground.Height = 2 * x.textPadding + float32(x.fontSize);
+
+	x.collider = &RectangleCollider{collider: x.recBackground};
+}
+
+func (x *Button) OnClick() {
+	x.backgroundColor = rl.Orange;
+	if (x.isClickable) {
+		x.callable.Call();
+	}
+}
+
+func (x *Button) Hover() {
+	x.backgroundColor = rl.DarkBlue;
+}
+
+func (x *Button) Draw() {
+	rl.DrawRectangleRec(x.recBackground, x.backgroundColor);
+	rl.DrawText(x.text, int32(x.recBackground.X + x.textPadding), int32(x.marginTop + x.textPadding), x.fontSize, rl.White);
+	x.backgroundColor = rl.Blue;
+}
+
+// Window implementation
+type Window interface {
+	Collidable;
+	Callable;
+
+	Initialize();
+	OnClick();
+	Hover();
+	Draw();
+}
+
+type DieWindow struct {
+	resetButton WindowDisplayObject;
+	backgroundWindow rl.Rectangle;
+	rectangleLeftMargin float32;
+	textLeftMargin float32;
+	textWidth int32;
+	fontSize int32;
+	text string;
+	core Core;
+}
+
+func (x DieWindow) GetCollider() Collider {
+	return x.resetButton.GetCollider();
+}
+
+func (x *DieWindow) Call() {
+	x.core.ResetGame();
+}
+
+func (x *DieWindow) InitializeDefaultValues() {
+	if (x.fontSize == 0) {
+		x.fontSize = 40;
+	}
+	if (x.textLeftMargin == 0) {
+		x.textLeftMargin = 100.0;
+	}
+}
+
+func (x *DieWindow) OnClick() {
+	x.resetButton.OnClick();
+}
+
+func (x *DieWindow) Hover() {
+	x.resetButton.Hover();
+}
+
+func (x *DieWindow) Initialize() {
+	x.InitializeDefaultValues();
+
+	monitor := rl.GetCurrentMonitor();
+	screenWidth := rl.GetMonitorWidth(monitor);
+
+	x.resetButton = &Button{marginTop: 200.0, isClickable: true, callable: x};
+	x.resetButton.Initialize();
+	
+	x.textWidth = rl.MeasureText(x.text, x.fontSize);
+	x.rectangleLeftMargin = float32(screenWidth - int(x.textWidth)) / 2 - x.textLeftMargin
+
+	x.backgroundWindow.X = x.rectangleLeftMargin;
+	x.backgroundWindow.Y = float32(50.0);
+	x.backgroundWindow.Width = float32(x.textWidth) + 2 * x.textLeftMargin;
+	x.backgroundWindow.Height = float32(200.0) + x.resetButton.GetHeight();
+}
+
+func (x DieWindow) Draw() {
+	rl.DrawRectangleRec(x.backgroundWindow, rl.Black);
+	rl.DrawText(x.text, int32(x.rectangleLeftMargin + x.textLeftMargin), 100, x.fontSize, rl.White);
+	x.resetButton.Draw();
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                                  W I N D O W     M A N A G E R
+//
+// -------------------------------------------------------------------------------------------------------------------------------
+
+type IWindowManager interface {
+	SetWindow(window Window);
+	GetWindow() Window;
+	Initialize();
+	Tick();
+}
+
+type WindowManager struct {
+	window Window;
+}
+
+func (x *WindowManager) SetWindow(window Window) {
+	x.window = window;
+}
+
+func (x WindowManager) GetWindow() Window {
+	return x.window;
+}
+
+func (x *WindowManager) Initialize() {
+
+}
+
+func (x *WindowManager) Tick() {
+	collider := x.window.GetCollider();
+	if (collider.Collide(float32(rl.GetMouseX()), float32(rl.GetMouseY()))) {
+		if (rl.IsMouseButtonPressed(0)) {
+			x.window.OnClick();
+		} else {
+			x.window.Hover();
+		}
+	}
+	x.window.Draw();
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
+//                                                    F A B R I C   W I N D O W S 
+//
+// -------------------------------------------------------------------------------------------------------------------------------
+
+type IWindowFactory interface {
+	GetDieWindow() Window;
+	Initialize();
+}
+
+type WindowFactory struct {
+	dieWindow Window;
+	core Core;
+}
+
+func (x WindowFactory) GetDieWindow() Window {
+	return x.dieWindow;
+}
+
+func (x *WindowFactory) Initialize() {
+	x.dieWindow = &DieWindow{text: "Has muerto :(", core: x.core};
+	x.dieWindow.Initialize();
+}
+
+
+// -------------------------------------------------------------------------------------------------------------------------------
+//
 //                                            D I S P L A Y A B L E   S T R U C T S 
 //
 // -------------------------------------------------------------------------------------------------------------------------------
@@ -255,7 +519,7 @@ func (x *Enemy) Die(pos int) {
 func (x Enemy) CollideWithBullet() bool{
 	haveCollide := false;
 	rec := x.GetCollider();
-	// rl.DrawRectangleRec(rec, rl.Red);  // --- For debuging purposes
+	// rl.DrawRectangleRec(rec, rl.Red);   // --- For debuging purposes
 	bulletsArray := x.core.GetBulletsArray()
 	for i:=0; i<len(bulletsArray); i++ {
 		bullet := bulletsArray[i];
@@ -362,6 +626,7 @@ type Level interface {
 	isEnded() bool
 	Initialize()
 	PlayerDied()
+	Reset()
 	Tick()
 	End()
 }
@@ -387,20 +652,8 @@ func (x *DefinedLevel) Initialize() {
 	x.playerLives = 1;
 }
 
-func (x *DefinedLevel) Tick() {
-	x.ticks++;
-	if (x.waveNumber < len(x.waves) && x.waves[x.waveNumber].canActivateWave(x.ticks)) {
-		x.waves[x.waveNumber].makeWave();
-		x.waveNumber++;
-	}
-}
-
 func (x DefinedLevel) isEnded() bool {
 	return x.playerLives == 0;
-}
-
-func (x DefinedLevel) End() {
-
 }
 
 func (x *DefinedLevel) AddWave(w Wave) {
@@ -416,6 +669,27 @@ func (x *DefinedLevel) GetCore() Core {
 
 func (x *DefinedLevel) PlayerDied() {
 	x.playerLives--;
+}
+
+func (x *DefinedLevel) Reset() {
+	x.playerLives = 1;
+	x.waveNumber = 0;
+	x.ticks = 0;
+}
+
+func (x *DefinedLevel) Tick() {
+	if (x.isEnded()) {
+		return;
+	}
+	x.ticks++;
+	if (!x.isEnded() && x.waveNumber < len(x.waves) && x.waves[x.waveNumber].canActivateWave(x.ticks)) {
+		x.waves[x.waveNumber].makeWave();
+		x.waveNumber++;
+	}
+}
+
+func (x DefinedLevel) End() {
+	x.core.OpenWindow(x.core.GetWindowFactory().GetDieWindow());
 }
 
 type BasicWave struct {
@@ -482,6 +756,7 @@ func (x *BasicBulletController) GetBulletsArray() []*Bullet{
 type DisplayableObjectController interface {
 	AddDisplayableObject(dp DisplayObject)
 	RemoveDisplayableObject(i int)
+	Clear();
 	Tick();
 }
 
@@ -499,6 +774,11 @@ func (x *BasicDisplayableObjectController) RemoveDisplayableObject(i int) {
     x.newDisplayArray = x.newDisplayArray[:len(x.newDisplayArray)-1]
 }
 
+func (x *BasicDisplayableObjectController) Clear() {
+	x.displayArray = []DisplayObject{};
+	x.newDisplayArray = []DisplayObject{};
+}
+
 func (x *BasicDisplayableObjectController) Tick() {
 	x.newDisplayArray = x.displayArray
 	for i := len(x.displayArray)-1; i >= 0 ; i-- {
@@ -514,7 +794,10 @@ type GameEngine interface {
 	GetPlayer() *Player
 	IsGameEnded() bool
 	InitializeGame()
-	PlayerDied()
+	PlayerDied();
+	ResetGame();
+	GameEnded();
+	EndGame();
 	Tick();
 }
 
@@ -549,9 +832,22 @@ func (x *BasicGameEngine) Tick() {
 	x.level.Tick();
 }
 
+func (x *BasicGameEngine) GameEnded() {
+	x.core.OpenWindow(x.core.GetWindowFactory().GetDieWindow());
+}
+
+func (x *BasicGameEngine) EndGame() {
+	x.level.End();
+}
+
 func (x *BasicGameEngine) PlayerDied() {
 	x.level.PlayerDied();
 }
+
+func (x *BasicGameEngine) ResetGame() {
+	x.level.Reset();
+}
+
 
 // Core of the Game
 
@@ -560,26 +856,35 @@ type Core interface {
 	BulletController;
 	GameEngine;
 
+	GetWindowFactory() IWindowFactory;
 	GetEnemyFactory() EnemyFactory;
+	OpenWindow(window Window);
 }
 
 type CoreGame struct {
 	displayableObjectController DisplayableObjectController;
 	bulletController BulletController;
+	windowManager IWindowManager;
+	windowFactory IWindowFactory;
 	enemyFactory EnemyFactory;
 	gameEngine GameEngine;
+	openedWindow Window;
 }
 
 func (x *CoreGame) InitializeGame() {
+	rl.InitAudioDevice();
+	InitWindow();
+
 	x.displayableObjectController = &BasicDisplayableObjectController{};
 	x.bulletController = &BasicBulletController{};
 	x.gameEngine = &BasicGameEngine{core: x};
 	x.enemyFactory = &BasicEnemyFactory{};
-
-	rl.InitAudioDevice();
-	InitWindow();
+	x.windowFactory = &WindowFactory{core: x};
+	x.windowManager = &WindowManager{};
 
 	x.enemyFactory.Initialize();
+	x.windowManager.Initialize();
+	x.windowFactory.Initialize();
 	x.gameEngine.InitializeGame();
 }
 
@@ -590,6 +895,10 @@ func (x *CoreGame) AddDisplayableObject(dp DisplayObject) {
 
 func (x *CoreGame) RemoveDisplayableObject(i int) {
 	x.displayableObjectController.RemoveDisplayableObject(i);
+}
+
+func (x *CoreGame) Clear() {
+	
 }
 
 //Manipulating Bullets
@@ -624,6 +933,11 @@ func (x *CoreGame) Tick() {
 		rl.ClearBackground(rl.RayWhite);
 		x.displayableObjectController.Tick();
 		x.gameEngine.Tick();
+		if(x.gameEngine.IsGameEnded()) {
+			x.EndGame();
+		}
+	} else {
+		x.windowManager.Tick();
 	}
 	rl.EndDrawing();
 }
@@ -632,9 +946,31 @@ func (x *CoreGame) PlayerDied() {
 	x.gameEngine.PlayerDied();
 }
 
+func (x *CoreGame) GameEnded() {
+	x.gameEngine.GameEnded();
+}
+
+func (x *CoreGame) EndGame() {
+	x.gameEngine.EndGame();
+}
+
+func (x *CoreGame) ResetGame() {
+	x.gameEngine.ResetGame();
+	x.displayableObjectController.Clear();
+}
+
 // Other functionality
+func (x CoreGame) GetWindowFactory() IWindowFactory {
+	return x.windowFactory;
+}
+
 func (x CoreGame) GetEnemyFactory() EnemyFactory {
 	return x.enemyFactory;
+}
+
+func (x *CoreGame) OpenWindow(window Window) {
+	x.windowManager.SetWindow(window);
+	x.windowManager.Tick();
 }
 
 
