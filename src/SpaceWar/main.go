@@ -5,7 +5,7 @@ import (
 	"github.com/gen2brain/raylib-go/raylib"
 	//"math/rand"
 	//"time"
-	//"strconv"
+	"strconv"
 	"fmt"
 	"math"
 )
@@ -180,7 +180,7 @@ func (x *DieWindow) InitializeDefaultValues() {
 		x.fontSize = 40;
 	}
 	if (x.textLeftMargin == 0) {
-		x.textLeftMargin = 100.0;
+		x.textLeftMargin = 110.0;
 	}
 }
 
@@ -198,10 +198,10 @@ func (x *DieWindow) Initialize() {
 	monitor := rl.GetCurrentMonitor();
 	screenWidth := rl.GetMonitorWidth(monitor);
 
-	x.resetButton = &Button{marginTop: 200.0, isClickable: true, callable: x};
+	x.resetButton = &Button{marginTop: 220.0, isClickable: true, callable: x};
 	x.resetButton.Initialize();
 	
-	x.textWidth = rl.MeasureText(x.text, x.fontSize);
+	x.textWidth = rl.MeasureText(x.text + "???", x.fontSize);
 	x.rectangleLeftMargin = float32(screenWidth - int(x.textWidth)) / 2 - x.textLeftMargin
 
 	x.backgroundWindow.X = x.rectangleLeftMargin;
@@ -212,7 +212,8 @@ func (x *DieWindow) Initialize() {
 
 func (x DieWindow) Draw() {
 	rl.DrawRectangleRec(x.backgroundWindow, rl.Black);
-	rl.DrawText(x.text, int32(x.rectangleLeftMargin + x.textLeftMargin), 100, x.fontSize, rl.White);
+	s := strconv.Itoa(x.core.GetGameEngine().GetLevel().GetScore())
+	rl.DrawText(x.text + s, int32(x.rectangleLeftMargin + x.textLeftMargin), 100, x.fontSize, rl.White);
 	x.resetButton.Draw();
 }
 
@@ -278,7 +279,7 @@ func (x WindowFactory) GetDieWindow() Window {
 }
 
 func (x *WindowFactory) Initialize() {
-	x.dieWindow = &DieWindow{text: "Has muerto :(", core: x.core};
+	x.dieWindow = &DieWindow{text: "Has muerto :(\n Puntuación: ", core: x.core};
 	x.dieWindow.Initialize();
 }
 
@@ -468,13 +469,13 @@ func (x *Bullet) Tick(pos int) {
 }
 
 
-
 // Implementation of the Enemy Displayable Struct
 
 type Enemy struct {
 	dp DisplayableObject
 	dieSound rl.Sound
-	core Core
+	core Core;
+	score int;
 }
 
 func (x Enemy) GetWidth() int32 {
@@ -507,11 +508,16 @@ func (x *Enemy) Tick(pos int) {
 }
 
 func (x *Enemy) Die(pos int) {
-	collide := x.CollideWithBullet();
-	if (x.dp.marginLeft == -0.2 || collide) {
+	collideWithBullet := x.CollideWithBullet();
+	collideWithPlayer := x.CollideWithPlayer();
+	if (x.dp.marginLeft == -0.2 || collideWithBullet || collideWithPlayer) {
 		x.core.RemoveDisplayableObject(pos);
-		if (collide) {
+		if (collideWithBullet) {
 			rl.PlaySoundMulti(x.dieSound)
+			x.core.GetGameEngine().GetLevel().AddScore(x.score)
+		} else if (collideWithPlayer) {
+			rl.PlaySoundMulti(x.dieSound)
+			x.core.PlayerDied();
 		}
 	}
 }
@@ -530,11 +536,16 @@ func (x Enemy) CollideWithBullet() bool{
 			break;
 		}
 	}
+	return haveCollide;
+}
+
+func (x Enemy) CollideWithPlayer() bool {
+	haveCollide := false;
+	rec := x.GetCollider();
 	rec2 := x.core.GetPlayer().GetCollider();
 	// rl.DrawRectangleRec(rec2, rl.Red);  // --- For debuging purposes
 	if (rl.CheckCollisionRecs(rec, rec2)) {
 		haveCollide = true;
-		x.core.PlayerDied();
 	}
 	return haveCollide;
 }
@@ -610,7 +621,7 @@ func (x *BasicEnemyFactory)  GenerateLinearEnemy(mt float32, ml float32) {
 }
 
 func (x *BasicEnemyFactory)  GenerateLinearEnemyDp(dp DisplayableObject) {
-	enemy := &LinearEnemy{enemy: Enemy{dp: dp, dieSound: x.dieSoundLinearEnemy, core: coreGame}};
+	enemy := &LinearEnemy{enemy: Enemy{dp: dp, score: 1, dieSound: x.dieSoundLinearEnemy, core: coreGame}};
 	coreGame.AddDisplayableObject(enemy);
 }
 
@@ -621,9 +632,11 @@ func (x *BasicEnemyFactory)  GenerateLinearEnemyDp(dp DisplayableObject) {
 // -------------------------------------------------------------------------------------------------------------------------------
 
 type Level interface {
+	AddScore(score int)
 	SetCore(core Core)
 	GetCore() Core
 	isEnded() bool
+	GetScore() int
 	Initialize()
 	PlayerDied()
 	Reset()
@@ -643,6 +656,11 @@ type DefinedLevel struct {
 	sound string;
 	ticks int;
 	core Core;
+	score int;
+}
+
+func (x *DefinedLevel) AddScore(score int) {
+	x.score = x.score + score;
 }
 
 func (x *DefinedLevel) Initialize() {
@@ -654,6 +672,10 @@ func (x *DefinedLevel) Initialize() {
 
 func (x DefinedLevel) isEnded() bool {
 	return x.playerLives == 0;
+}
+
+func (x DefinedLevel) GetScore() int {
+	return x.score;
 }
 
 func (x *DefinedLevel) AddWave(w Wave) {
@@ -675,6 +697,7 @@ func (x *DefinedLevel) Reset() {
 	x.playerLives = 1;
 	x.waveNumber = 0;
 	x.ticks = 0;
+	x.score = 0;
 }
 
 func (x *DefinedLevel) Tick() {
@@ -793,6 +816,7 @@ type GameEngine interface {
 	SetLevel(level Level)
 	GetPlayer() *Player
 	IsGameEnded() bool
+	GetLevel() Level;
 	InitializeGame()
 	PlayerDied();
 	ResetGame();
@@ -817,6 +841,10 @@ func (x *BasicGameEngine) InitializeGame() {
 
 func (x BasicGameEngine) IsGameEnded() bool {
 	return x.level.isEnded();
+}
+
+func (x BasicGameEngine) GetLevel() Level {
+	return x.level;
 }
 
 func (x BasicGameEngine) GetPlayer() *Player {
@@ -858,6 +886,7 @@ type Core interface {
 
 	GetWindowFactory() IWindowFactory;
 	GetEnemyFactory() EnemyFactory;
+	GetGameEngine() GameEngine;
 	OpenWindow(window Window);
 }
 
@@ -959,6 +988,10 @@ func (x *CoreGame) ResetGame() {
 	x.displayableObjectController.Clear();
 }
 
+func (x CoreGame) GetLevel() Level {
+	return x.gameEngine.GetLevel();
+}
+
 // Other functionality
 func (x CoreGame) GetWindowFactory() IWindowFactory {
 	return x.windowFactory;
@@ -966,6 +999,10 @@ func (x CoreGame) GetWindowFactory() IWindowFactory {
 
 func (x CoreGame) GetEnemyFactory() EnemyFactory {
 	return x.enemyFactory;
+}
+
+func (x CoreGame) GetGameEngine() GameEngine {
+	return x.gameEngine;
 }
 
 func (x *CoreGame) OpenWindow(window Window) {
